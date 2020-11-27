@@ -1,25 +1,199 @@
 ---
-title: "Reproducible Research: Peer Assessment 1"
+title: "Reproducible Research: Course Project 1"
 output: 
   html_document:
     keep_md: true
 ---
+## Rmarkdown for Course Project 1 Activity monitoring  data
+This is a R Markdown document created at the end of "Reproducible Research" for the Coursera course "Peer Assessment 1" The assignment requires students, using markdown and R programming techniques, to write a R markdown document demonstrating literate programming. There are 5 main questions to be answered, which deal with data processing and analysis. The "activity monitoring data is the data provided to be worked on.
+
+### Activity Monitoring Dataset
+The data set used is Activity Monitoring Dataset
 
 
-## Loading and preprocessing the data
+###  Data Preprocessing 
+
+For the code to run correctly, the data must be in the user's current working directory. Data from the zip file is extracted by the unzip function before it is read into R. In order to accelerate the reading process, the object classes contained within each of the variables are defined.
+
+```{r} 
+unzip("repdata_data_activity.zip")
+initialData <- read.csv("activity.csv", colClasses=c("numeric", "Date", "numeric"))
+```
+
+
+```{r} 
+head(initialData)
+str(initialData)
+```
+
+###  Mean total number of steps taken per day
+
+
+```{r}
+data <- initialData[!(is.na(initialData$steps)), ]
+```
+
+The data must first be grouped individually for each day in order to determine the total number of steps taken per day and then the sum of each category is determined. Both of these steps can be completed by the aggregate function and the output is formatted in a tidy data frame.
+
+```{r}
+tSD <- aggregate(steps ~ date, data, sum)
+head(tSD)
+```
+Histogram is generated  to indicate the frequency of total steps taken each day.
+
+
+```{r}
+paletteBlue <- colorRampPalette(c("skyblue", "darkblue", "skyblue"))
+hist(tSD$steps, breaks=20, xlab="Number of Steps Taken", 
+     main="Histogram of the Total Number of Steps Taken per Day",
+     col=paletteBlue(22), family="serif")
+```
+
+Finally, the summarise function can calculate the mean and median values of the total number of steps taken per day.
+
+```{r, message=FALSE}
+library(dplyr)
+totalStepsSummary <- summarise(tSD, meanOfTotalSteps=mean(tSD$steps),
+                               medianOfTotalSteps=median(tSD$steps))
+print(totalStepsSummary)
+```
+
+ mean value  **10766.19**
+ median value **10765**
+
+### Average daily activity pattern
+
+We can use another exploratory graph, this time a time series map, to look at the average daily trend. Since the average number of steps taken for each interval (using all days) can be looked at in this plot, the aggregate function must be used again to divide the data into groups for each interval and then to average the mean function.
+
+```{r}
+meanStepsInterval <- aggregate(steps ~ interval, data, mean)
+head(meanStepsInterval)
+```
 
 
 
-## What is mean total number of steps taken per day?
+```{r}
+plot(x=meanStepsInterval$interval, y=meanStepsInterval$steps, type="l",
+     main="Time Series Plot of Average Steps Taken per Interval",
+     ylab="Number of Steps", xlab="Intervals (in 5 mins)",
+     col="darkred", lwd=1.5, family="serif")
+```
+
+
+```{r}
+meanStepsInterval[grep(max(meanStepsInterval$steps), meanStepsInterval$steps), ]
+```
+
+Maximum number of steps  **835**.
+
+### Imputing missing values
+
+As some of the observations can be checked to contain some NA values in the data:
+
+```{r}
+anyNA(initialData)
+```
 
 
 
-## What is the average daily activity pattern?
+```{r}
+data.frame(steps=sum(is.na(initialData$steps)), 
+           interval=sum(is.na(initialData$interval)), 
+           date=sum(is.na(initialData$date)))
+```
 
 
 
-## Imputing missing values
+```{r}
+imputedData <- initialData
+for(x in 1:17568) {
+    if(is.na(imputedData[x, 1])==TRUE) {
+        imputedData[x, 1] <- meanStepsInterval[meanStepsInterval$interval %in% imputedData[x, 3], 2]
+    }
+}
+head(imputedData)
+```
 
 
 
-## Are there differences in activity patterns between weekdays and weekends?
+```{r}
+imputedTotalStepsDay <- aggregate(steps ~ date, imputedData, sum)
+head(imputedTotalStepsDay)
+```
+
+Creating the histogram:
+
+```{r}
+paletteRed <- colorRampPalette(c("darkred", "darkred", "darkred"))
+hist(imputedTotalStepsDay$steps, breaks=20, xlab="Number of Steps Taken", 
+     main="Histogram of Total Number of Steps Taken per Day (With Imputed Values)",
+     col=paletteRed(22), family="serif")
+```
+
+
+
+```{r}
+imputedStepsSummary <- summarise(imputedTotalStepsDay, 
+                                 meanOfTotalSteps=mean(imputedTotalStepsDay$steps), 
+                                 medianOfTotalSteps=median(imputedTotalStepsDay$steps))  
+print(imputedStepsSummary)
+```
+
+
+```{r}
+rbind(totalStepsSummary, imputedStepsSummary)
+```
+
+
+
+
+###  Are there differences in activity patterns between weekdays and weekends?
+
+The question suggests that this problem should be addressed using the imputed data collection.
+First a new variable factor should be generated within the data frame to assist in answering this query. "This should mean whether a "weekday" or a "weekend" is every day.
+
+
+"weekend"weekend"Saturday"Saturday"Sunday"Sunday"weekday"weekday.
+
+```{r}
+dsData <- imputedData
+dsData$days <- weekdays(dsData$date)
+dsData$weekday <- as.character(rep(0, times=17568))
+for(x in 1:17568) {
+    if(dsData[x, 4] %in% c("Saturday", "Sunday")) {
+        dsData[x, 5] <- "weekend"
+    } else {
+        dsData[x, 5] <- "weekday"
+    }
+}
+dsData$weekday <- factor(dsData$weekday)
+head(dsData)
+```
+
+The data has to be divided into two classes of weekday/weekend data to compare the weekday and weekend data and create two plots of the average number of steps taken per interval, using the newly created variable.
+
+```{r}
+weekdayData <- dsData[dsData$weekday=="weekday", ]
+weekendData <- dsData[dsData$weekday=="weekend", ]
+```
+
+
+
+```{r}
+wkdayMean <- aggregate(steps ~ interval, weekdayData, mean)
+weekendMean <- aggregate(steps ~ interval, weekendData, mean)
+```
+
+The panel plot is ultimately established. Each 5 minute interval is shown by the x axis and the y axis displays the average number of steps taken. Both plots are split into data for weekdays and weekends.
+
+```{r}
+par(mfrow=c(2, 1), mar=c(4, 4.1, 3, 2.1))
+plot(wkdayMean$interval, wkdayMean$steps, type="l",
+     main="Time Series Plot of Average Steps Taken per Interval, for Weekdays",
+     xlab="Intervals (in 5 mins)", ylab="Number of Steps", family="serif",
+     col="darkblue", lwd=1.5, ylim=c(0, 230))
+plot(weekendMean$interval, weekendMean$steps, type="l",
+     main="Time Series Plot of Average Steps Taken per Interval, for Weekends",
+     xlab="Intervals (in 5 mins)", ylab="Number of Steps", family="serif",
+     col="darkred", lwd=1.5, ylim=c(0, 230))
+```
